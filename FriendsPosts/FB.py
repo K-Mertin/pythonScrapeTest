@@ -1,10 +1,11 @@
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import Select
 import sys
 import configparser
 import json
+import logging
+import os
+import pprint
 
 class FBPostParser:
 
@@ -13,36 +14,56 @@ class FBPostParser:
         self.LoadDriver()
          
     def Setting(self):
-        print('setting')
         self.config = configparser.ConfigParser()
-        self.config.read('Config.ini')
-        self.listFilePath = self.config.get('SeleniumOptions','Facebook_List')
-        self.browserLocation = self.config.get('SeleniumOptions','Chrome_Location')
-        self.userData = self.config.get('SeleniumOptions','Chrome_UserData')
+        print(os.getcwd())
+        with open('Config.ini') as file:
+            self.config.readfp(file)
 
+        self.listFilePath = self.config.get('Options','Facebook_List')
+        self.browserLocation = self.config.get('Options','Chrome_Location')
+        self.userData = self.config.get('Options','Chrome_UserData')
+        self.logPath = self.config.get('Options','Log_Path')
+        
+        formatter = logging.Formatter('[%(name)-12s %(levelname)-8s] %(asctime)s - %(message)s')
+        self.logger=logging.getLogger(__class__.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        
+        if not os.path.isdir(self.logPath):
+            os.mkdir(self.logPath)
+
+        fileHandler = logging.FileHandler(self.logPath+'log.txt')
+        fileHandler.setLevel(logging.INFO)
+        fileHandler.setFormatter(formatter)
+
+        streamHandler = logging.StreamHandler()
+        streamHandler.setLevel(logging.DEBUG)
+        streamHandler.setFormatter(formatter)
+
+        self.logger.addHandler(fileHandler)
+        self.logger.addHandler(streamHandler)
+  
         #load list
         with open(self.listFilePath) as file:
             self.fbUserList = json.load(file)
 
-        print('setted')
+        self.logger.info('Finish Setting')
 
     def LoadDriver(self):
-        print('loading')
+        self.logger.info('Driver Loading')
         self.options = webdriver.ChromeOptions()
         self.options.binary_location = self.browserLocation
-        self.options.add_argument(self.userData)
-        self.options.add_argument('headless')
-        self.options.add_argument(self.userData)
-       
+        #self.options.add_argument(self.userData)
+        #self.options.add_argument('headless')
+        #self.options.add_argument(self.userData)
+        self.options.add_argument('incognito')
         self.driver = webdriver.Chrome(chrome_options=self.options)
-        print('loaded')
+        self.logger.info('Finish Driver Loading')
     
     def ProcessPosts(self, yearCount, postsCount):
         try:
             self.driver.implicitly_wait(10)
             contents = self.driver.find_elements_by_class_name('userContent')
             unExanded = self.driver.find_elements_by_class_name('fbTimelineTimePeriodUnexpanded')
-            print('{}/{}'.format(len(contents) ,len(unExanded)))
 
             while len(unExanded)>yearCount and len(contents) < postsCount:
                 self.driver.execute_script('window.scrollTo(0,document.body.scrollHeight);')
@@ -56,6 +77,42 @@ class FBPostParser:
 
         except:
             print("Unexpected error1:", sys.exc_info()[0])
+    
+    def LoginFB(self,email,password):
+        
+        try:
+            self.logger.info('try to login')
+            self.driver.get('https://www.facebook.com/')
+
+            # emailElement = self.driver.find_element_by_css_selector('input[type=email]')
+            # passwordElement = self.driver.find_element_by_css_selector('input[type=password]')
+            # loginElement = self.driver.find_element_by_css_selector('input[value="登入"]')
+            emailElement = self.driver.find_element_by_xpath('//*[@id="email"]')
+            passwordElement = self.driver.find_element_by_xpath('//*[@id="pass"]')
+            loginElement = self.driver.find_element_by_xpath('//*[@id="loginbutton"]')
+
+            emailElement.send_keys(email)
+            self.driver.implicitly_wait(100)
+            passwordElement.send_keys(password)
+            self.driver.implicitly_wait(100)
+            loginElement.click()
+            self.driver.get('https://www.facebook.com/profile/')
+            try:
+                self.driver.find_element_by_xpath('//*[@id="fb-timeline-cover-name"]')
+            except NoSuchElementException:
+                self.logger.error('login fail')
+                return False,'login fail'
+            
+            self.logger.info('Success login')
+            return True,'Success login'
+        except NoSuchElementException:
+            self.logger.info('already login')
+            return True,'already login'
+        except:
+            self.logger.error(sys.exc_info()[0])
+            pprint.pprint(sys.exc_info())
+            return False,sys.exc_info()[0]
+        
 
     def __del__(self):
         try:
@@ -65,31 +122,8 @@ class FBPostParser:
             pass
 
 def main():
-    print(__name__)
+    logging.info(__name__)
     parser = FBPostParser()
-    
-    print(parser.fbUserList)
-
-    parser.driver.get('https://www.facebook.com/')
-
-    try:
-        parser.driver.get_screenshot_as_file('a.jpg')
-        email = parser.driver.find_element_by_css_selector('input[type=email]')
-        password = parser.driver.find_element_by_css_selector('input[type=password]')
-        login = parser.driver.find_element_by_css_selector('input[value="登入"]')
-        
-        email.send_keys('')
-        password.send_keys('')
-        login.click()
-    except NoSuchElementException:
-        pass
-    except:
-        return
-    
-    for i in parser.fbUserList:
-        parser.driver.get(i['url'])
-        parser.driver.get_screenshot_as_file(i['name']+'.jpg')
-        parser.ProcessPosts(0,10)
 
 if __name__ == '__main__':
     main()
