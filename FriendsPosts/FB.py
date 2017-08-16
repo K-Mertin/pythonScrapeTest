@@ -78,8 +78,8 @@ def main():
         password = parser.driver.find_element_by_css_selector('input[type=password]')
         login = parser.driver.find_element_by_css_selector('input[value="登入"]')
         
-        email.send_keys('martinkms@yahoo.com.tw')
-        password.send_keys('a227720059')
+        email.send_keys('')
+        password.send_keys('')
         login.click()
     except NoSuchElementException:
         pass
