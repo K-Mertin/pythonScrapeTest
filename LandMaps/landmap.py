@@ -8,7 +8,7 @@ import sys
 try:
     options = webdriver.ChromeOptions()
     options.binary_location = r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
-    #options.add_argument('headless')
+    options.add_argument('headless')
     options.add_argument('window-size=1600x900')
 
     driver = webdriver.Chrome(chrome_options=options)
@@ -29,7 +29,7 @@ try:
 
     select = Select(driver.find_element_by_id("select_town_id"))
     select.select_by_visible_text("七堵區")
-    select.
+
     time.sleep(0.5)
 
     elem = driver.find_element_by_id("select_sect_id")

@@ -9,4 +9,4 @@ print(parser.fbUserList)
 for i in parser.fbUserList:
     parser.driver.get(i['url'])
     parser.driver.get_screenshot_as_file(i['name']+'.jpg')
-    parser.ProcessPosts(0,10)
+    # parser.ProcessPosts(0,10)
