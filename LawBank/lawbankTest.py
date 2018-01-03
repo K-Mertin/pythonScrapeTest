@@ -1,8 +1,6 @@
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
-
 import time, json
-
 
 options = webdriver.ChromeOptions()
 options.binary_location = 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'

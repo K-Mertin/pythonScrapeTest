@@ -1,7 +1,15 @@
 import json
+import re
 
-data = [ { 'a' : 1, 'b' : 2, 'c' : 3, 'd' : 4, 'e' : 5 } ]
+line = '這是測試'
 
-json = json.dumps(data)
+key ='123'
 
-print( json.dumps(data))
+# data = [ { 'a' : 1, 'b' : 2, 'c' : 3, 'd' : 4, 'e' : 5 } ]
+
+# json = json.dumps(data)
+if re.search( key, line):
+    print( re.search( key, line).group())
+else:
+    print('no exist')
+
