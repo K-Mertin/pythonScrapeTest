@@ -1,47 +1,62 @@
 # mongo.py
-
-from flask import Flask
-from flask import jsonify
-from flask import request
-from flask_pymongo import PyMongo
+from flask import Flask, jsonify, request, g
+from DataAccess import DataAccess
+from flask_cors import CORS
+import json
 
 app = Flask(__name__)
+CORS(app)
 
-app.config['MONGO_DBNAME'] = 'restdb'
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/restdb'
+@app.before_request
+def before_request():
+    g.dataAccess = DataAccess()
 
-mongo = PyMongo(app)
+@app.route('/requests', methods=['GET'])
+def get_all_requests():
+    requests = g.dataAccess.get_created_requests()
+    
+    results = []
 
+    for request in requests:
+        print(request["searchKeys"])
+        results.append({
+            "_id":str(request["_id"]),
+            "requestId":request["requestId"],
+            "status":request["status"],
+            "searchKeys":list(map(lambda x : x['key'], request['searchKeys']))  ,
+            "referenceKeys":request["referenceKeys"],
+            "createDate":request["createDate"]
+        })
+    # print((requests))
+    return jsonify(results)
 
-@app.route('/star', methods=['GET'])
-def get_all_stars():
-    star = mongo.db.stars
-    output = []
-    for s in star.find():
-        output.append({'name': s['name'], 'distance': s['distance']})
-    return jsonify({'result': output})
+@app.route('/documents/<requestId>', methods=['GET'])
+def get_all_documents(requestId):
+    print(requestId)
+    documents = g.dataAccess.get_all_documents(requestId,10,1)
 
+    results = []
 
-@app.route('/star/<name>', methods=['GET'])
-def get_one_star(name):
-    star = mongo.db.stars
-    s = star.find_one({'name': name})
-    if s:
-        output = {'name': s['name'], 'distance': s['distance']}
-    else:
-        output = "No such name"
-    return jsonify({'result': output})
+    for doc in documents:
+        results.append({
+            "title": doc["title"],
+            "searchKeys":doc["searchKeys"],
+            "referenceKeys":doc["referenceKeys"],
+            "tags":doc["tags"],
+            "source":doc["source"]
+        })
+    
+    return jsonify(results)
 
+@app.route('/requests', methods=['POST'])
+def add_request():
+    data=json.loads(request.data)
 
-@app.route('/star', methods=['POST'])
-def add_star():
-    star = mongo.db.stars
-    name = request.json['name']
-    distance = request.json['distance']
-    star_id = star.insert({'name': name, 'distance': distance})
-    new_star = star.find_one({'_id': star_id})
-    output = {'name': new_star['name'], 'distance': new_star['distance']}
-    return jsonify({'result': output})
+    g.dataAccess.add_request({
+        "searchKeys": data['searchKeys'],
+        "referenceKeys": data['referenceKeys']
+    })
+    return jsonify("recevied")
 
 
 if __name__ == '__main__':

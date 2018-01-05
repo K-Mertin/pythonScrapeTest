@@ -1,46 +1,63 @@
 import pymongo
 import datetime
 import time
+from pymongo import MongoClient
 from bson.objectid import ObjectId
+import re
 
-def get_db():
-    from pymongo import MongoClient
-    client = MongoClient('localhost:37017', username='mertin',
-                         password='mertin', authSource='konew')
-    db = client['konew']
-    return db
+class DataAccess:
 
-def add_request(db, request):
-    request['status'] = 'created'
-    request['createDate'] = datetime.datetime.now()
-    request['requestId'] = time.time()
-    return db['Requests'].insert(request)
+    def __init__(self):
+        self.client = MongoClient('localhost:37017', username='mertin', password='mertin', authSource='konew')
+        self.db = self.client['konew']
 
-def remove_request(db, id):
-    return db['Requests'].update_one({'_id': ObjectId(id)}, {'$set': {'status': 'removed'}})
+    def add_request(self, request):
+        request['status'] = 'created'
+        request['createDate'] = datetime.datetime.now()
+        request['requestId'] = str(time.time())
+        request['searchKeys'] = list(map(lambda x:{"key":x, "count":0}, request['searchKeys']))
+        return self.db['Requests'].insert(request)
 
-def change_reference(db, id, refKey):
-    return db['Requests'].update_one({'_id': ObjectId(id)}, {'$set': {'referenceKey': refKey, 'status': 'modified'}})
+    def remove_request(self, id):
+        return self.db['Requests'].update_one({'_id': ObjectId(id)}, {'$set': {'status': 'removed'}})
 
-def get_process_requests(db):
-    return db['Requests'].find({'status': {"$in": ['created']}})
+    def change_reference(self, id, refKey):
+        return self.db['Requests'].update_one({'_id': ObjectId(id)}, {'$set': {'referenceKeys': refKey, 'status': 'modified'}})
+    
+    def update_document_reference(self, collection, id, referenceKeys ):
+        return self.db[collection].update_one({'_id': ObjectId(id)}, {'$set': {'referenceKeys': referenceKeys}})
 
-def get_modified_requests(db):
-    return db['Requests'].find({'status': {"$in": ['modified']}})
+    def get_created_requests(self):
+        return self.db['Requests'].find().sort("createDate", pymongo.DESCENDING)
 
-def get_processing_requests(db):
-    return db['Requests'].find({'status': {"$in": ['processing']}})
+    def get_modified_requests(self):
+        return self.db['Requests'].find({'status': {"$in": ['modified']}})
 
-def processing_requests(db, id, totalCount):
-    return db['Requests'].update_one({'_id': ObjectId(id)}, {'$set': {'status': 'processing', 'totalCount': totalCount}})
+    def get_processing_requests(self):
+        return self.db['Requests'].find({'status': {"$in": ['processing']}})
 
-def insert_documents(db, collection, documents):
-    return db[collection].insert(documents)
+    def processing_requests(self, id, searchKey, totalCount):
+        return self.db['Requests'].update_one({'_id': ObjectId(id), 'searchKeys.key':searchKey}, {'$set': {'status': 'processing', 'searchKeys.$.count':totalCount}})
+
+    def finish_requests(self, id):
+        return self.db['Requests'].update_one({'_id': ObjectId(id)}, {'$set': {'status': 'finished'}})
+
+    def insert_documents(self, collection, documents):
+        return self.db[collection].insert_many(documents)
+
+    def get_all_documents(self, collection, pageSize, pageNum):
+        skips = pageSize * (pageNum - 1)
+        return self.db[collection].find().skip(skips).limit(pageSize)
+    
+    def get_documents_count(self,collection):
+        return self.db[collection].find().count()
 
 if __name__ == "__main__":
+    db = DataAccess()
+
     request = {
-        "searchKeys": ["康業資本"],
-        "referenceKeys": ["台北"]
+        "searchKeys": ["郭國勝"],
+        "referenceKeys": ["臺中"]
     }
     documents = [
         {
@@ -58,15 +75,25 @@ if __name__ == "__main__":
             "content":"content B"
         }
     ]
-    db = get_db()
-
     # refKey = ['A']
     # refKey.append('B')
 
     # remove_request(db,id)
-    results = get_process_requests(db)
-    for result in results :
-        print(result['requestId'])
+    db.add_request(request)
+    # db.change_reference('5a4ca418f6fadc82283bba6a',['臺中','基隆'])
+    # print(db.get_modified_requests().count())
+    # print(db.db['Requests'].update_one({'_id': ObjectId("5a4ca418f6fadc82283bba6a")},{'$set': {'requestId':'1514966746.2558856'}}))
+    # results = db.get_all_documents('1514966746.2558856',5,2),z
+
+
+
+    # print(db.get_documents_count('1514966746.2558856'))
+    # for re in results:
+    #     print(re['title'])
+
+
+    # for result in results :
+    #     print(result['requestId'])
         # processing_requests(db,result['_id'])
-        insert_documents(db,str(result['requestId'])+result['searchKey'][0],documents)
+        # insert_documents(db,str(result['requestId'])+result['searchKey'][0],documents)
     # result=add_request(db,request)
