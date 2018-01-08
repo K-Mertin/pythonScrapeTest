@@ -32,20 +32,36 @@ def get_all_requests():
 
 @app.route('/documents/<requestId>', methods=['GET'])
 def get_all_documents(requestId):
-    print(requestId)
-    documents = g.dataAccess.get_all_documents(requestId,10,1)
+    pageSize = request.args.get('pageSize', default = 10, type = int)
+    pageNumber = request.args.get('pageNumber', default = 1, type = int)
+    sortBy = request.args.get('sortBy', default = 'keys', type= str)
+    totalCount = g.dataAccess.get_documents_count(requestId)
 
-    results = []
+    print(requestId)
+    documents = g.dataAccess.get_all_documents(requestId,pageSize,pageNumber,sortBy)
+
+    totalPages = int(totalCount / pageSize) + 1
+
+    results = {
+        "pagination" : {
+            "pageSize":pageSize,
+            "pageNumber":pageNumber,
+            "totalCount":totalCount,
+            "totalPages":totalPages
+        },
+        "data" : []
+    }
+    print(results)
 
     for doc in documents:
-        results.append({
+        results["data"].append({
             "title": doc["title"],
             "searchKeys":doc["searchKeys"],
             "referenceKeys":doc["referenceKeys"],
             "tags":doc["tags"],
             "source":doc["source"]
         })
-    
+
     return jsonify(results)
 
 @app.route('/requests', methods=['POST'])
@@ -58,6 +74,14 @@ def add_request():
     })
     return jsonify("recevied")
 
+@app.route('/requests', methods=['PUT'])
+def change_request():
+    data=json.loads(request.data)
+
+    print(data)
+    g.dataAccess.change_reference(data['_id'],data['referenceKeys'])
+    
+    return jsonify("updated")
 
 if __name__ == '__main__':
     app.run(debug=True)

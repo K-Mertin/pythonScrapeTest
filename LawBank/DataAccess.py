@@ -78,8 +78,9 @@ if __name__ == "__main__":
     # refKey.append('B')
 
     # remove_request(db,id)
-    db.add_request(request)
-    # db.change_reference('5a4ca418f6fadc82283bba6a',['臺中','基隆'])
+
+
+    db.change_reference('5a4ca418f6fadc82283bba6a',['嚴永誠','基隆','魏樹達','台北','臺北'])    # db.change_reference('5a4ca418f6fadc82283bba6a',['臺中','基隆'])
     # print(db.get_modified_requests().count())
     # print(db.db['Requests'].update_one({'_id': ObjectId("5a4ca418f6fadc82283bba6a")},{'$set': {'requestId':'1514966746.2558856'}}))
     # results = db.get_all_documents('1514966746.2558856',5,2),z
