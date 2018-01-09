@@ -7,17 +7,10 @@
 
 import datetime, time
 
-myrecord2 = [
-        { "author": "Duke II",
-          "title" : "PyMongo II 101",
-          "tags" : ["MongoDB II", "PyMongo II", "Tutorial II"],
-          "date" : datetime.datetime.now() },
-        { "author": "Duke III",
-          "title" : "PyMongo III 101",
-          "tags" : ["MongoDB III", "PyMongo III", "Tutorial III"],
-          "date" : datetime.datetime.utcnow() }
-        ]
+filters = ['A','B']
 
+filters= list(map(lambda x : [{'keyA':x},{'keyB':x},{'keyC':x}],filters ))
+filters = sum(filters,[])
 # mydb.mytable.insert(myrecord2)
-myrecord2[0]["status"]="test"
-print(time.time())
+# myrecord2[0]["status"]="test"
+print(filters)

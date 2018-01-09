@@ -27,8 +27,15 @@ class DataAccess:
     def update_document_reference(self, collection, id, referenceKeys ):
         return self.db[collection].update_one({'_id': ObjectId(id)}, {'$set': {'referenceKeys': referenceKeys}})
 
-    def get_created_requests(self):
-        return self.db['Requests'].find().sort("createDate", pymongo.DESCENDING)
+    def get_created_requests(self, pageSize=10, pageNum=1):
+        skips = pageSize * (pageNum - 1)
+        totalCount = self.db['Requests'].find({'status': {"$in": ['modified','created','processing','finished']}}).count()
+
+        result = {
+            "totalCount":totalCount,
+            "data": self.db['Requests'].find({'status': {"$in": ['modified','created','processing','finished']}}).sort("createDate", pymongo.DESCENDING).skip(skips).limit(pageSize)
+        }
+        return result
 
     def get_modified_requests(self):
         return self.db['Requests'].find({'status': {"$in": ['modified']}})
@@ -45,11 +52,14 @@ class DataAccess:
     def insert_documents(self, collection, documents):
         return self.db[collection].insert_many(documents)
 
-    def get_all_documents(self, collection='1514966746.2558856', pageSize=10, pageNum=1, sortBy="keys"):
+    def get_all_documents(self, collection='1514966746.2558856', pageSize=10, pageNum=1, sortBy="keys", filters=[]):
         skips = pageSize * (pageNum - 1)
-        if sortBy == "keys":
-            return self.db[collection].aggregate([
-                    {
+        filters = list(map(lambda x : [{'searchKeys':x},{'referenceKeys':x},{'tags':x}],filters ))
+        filters = sum(filters,[])
+
+        aggregateList = []
+        aggregateList.append(
+            {
                         "$project":{
                             "searchKeys":1,
                             "referenceKeys":1,
@@ -60,33 +70,30 @@ class DataAccess:
                             "date":1,
                             "rkLength":{"$size":"$referenceKeys"},
                             "skLength":{"$size":"$searchKeys"},
-                    }},
-                    { "$sort": {"skLength":-1,"rkLength":-1, "date": -1}},
-                    { "$skip": skips},
-                    { "$limit": pageSize }
-            ])
+                    }}
+        )
+        if len(filters) >0:
+            aggregateList.append( {  "$match":{"$or":filters}} )
+        if sortBy == "keys":
+            aggregateList.append( { "$sort": {"skLength":-1,"rkLength":-1, "date": -1}})
         else:
-            return self.db[collection].aggregate([
-                    {
-                        "$project":{
-                            "searchKeys":1,
-                            "referenceKeys":1,
-                            "tags":1,
-                            "title": 1,
-                            "content":1,
-                            "source":1,
-                            "date":1,
-                            "rkLength":{"$size":"$referenceKeys"},
-                            "skLength":{"$size":"$searchKeys"}
-                    }},
-                    { "$sort": {"skLength":-1,"date": -1,"rkLength":-1}},
-                    { "$skip": skips},
-                    { "$limit": pageSize }
-            ])
-        # return self.db[collection].find().skip(skips).limit(pageSize)
+             aggregateList.append( { "$sort": {"skLength":-1,"date": -1,"rkLength":-1}})
+
+        aggregateList.append( { "$skip": skips})
+
+        aggregateList.append( { "$limit": pageSize })
+
+        return self.db[collection].aggregate(aggregateList)
     
-    def get_documents_count(self,collection):
-        return self.db[collection].find().count()
+    def get_documents_count(self,collection, filters=[]):
+
+        if len(filters) >0:
+            filters = list(map(lambda x : [{'searchKeys':x},{'referenceKeys':x},{'tags':x}],filters ))
+            filters = sum(filters,[])
+            filters = {"$or":filters}
+            return self.db[collection].find(filters).count()
+        else:
+            return self.db[collection].find().count()
 
 if __name__ == "__main__":
     db = DataAccess()
