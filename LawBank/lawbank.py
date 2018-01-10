@@ -1,5 +1,5 @@
 from Crawler import Crawler
-from '../mongodb/DataAccess' import DataAccess
+from DataAccess import DataAccess
 import re, math
 import time
 
@@ -92,61 +92,85 @@ class LawBankParser:
 def searchKeyMap(searchKey):
     return searchKey['key']
 
+def processModifiedKey(dataAccess, parser):
+    #process modified referenceKey
+    requests = dataAccess.get_modified_requests()
+    
+    if requests.count()>0 :
+        for request in requests:
+            requestId = request['requestId']
+            referenceKeys = request['referenceKeys']
+            _id = request['_id']
+
+            pageSize = 10
+            totalCount = dataAccess.get_documents_count(str(requestId))
+            totalPages = math.ceil(totalCount/pageSize)
+
+            for i in range(1,totalPages+1):
+                documents = dataAccess.get_allPaged_documents(str(requestId),pageSize,i)
+                for doc in documents:
+                    dataAccess.update_document_reference(str(requestId),doc['_id'],parser.ContentAnalysis(doc['content'], referenceKeys))
+                    
+            dataAccess.finish_requests(_id)
+
+def processNewRequest(dataAccess, parser):
+    # process new requests
+    requests = dataAccess.get_created_requests()
+
+    if requests.count()>0 :
+        
+        for request in requests:
+            requestId = request['requestId']
+            searchKeys = list(map(lambda x : x['key'], request['searchKeys']))
+            referenceKeys = request['referenceKeys']
+            _id = request['_id']
+
+            for searchKey in searchKeys:
+                print(searchKey)
+                parser.Search(searchKey)
+                parser.getCourts()
+                dataAccess.processing_requests(_id,searchKey,parser.totalCount)
+                parser.processIter(searchKeys,referenceKeys,requestId)
+
+            dataAccess.finish_requests(_id)
+            
+            print(request)
+
+def processProcessingKey(dataAccess, parser):
+    # process new requests
+    requests = dataAccess.get_processing_requests()
+
+    if requests.count()>0 :
+        
+        for request in requests:
+            requestId = request['requestId']
+            searchKeys = list(map(lambda x : x['key'], request['searchKeys']))
+            referenceKeys = request['referenceKeys']
+            _id = request['_id']
+
+            dataAccess.remove_all_documents(requestId)
+
+            for searchKey in searchKeys:
+                print(searchKey)
+                parser.Search(searchKey)
+                parser.getCourts()
+                dataAccess.processing_requests(_id,searchKey,parser.totalCount)
+                parser.processIter(searchKeys,referenceKeys,requestId)
+
+            dataAccess.finish_requests(_id)
+            
+            print(request)    
+
 def main():
     dataAccess = DataAccess()
     crawler = Crawler()
     parser = LawBankParser(crawler.driver, dataAccess)
 
-    #process processing requests
-
-
-    print(dataAccess.get_created_requests())
-
-    #process modified referenceKey
-    # requests = dataAccess.get_modified_requests()
+    processModifiedKey(dataAccess, parser)
     
-    # if requests.count()>0 :
-    #     for request in requests:
-    #         requestId = request['requestId']
-    #         referenceKeys = request['referenceKeys']
-    #         _id = request['_id']
+    processNewRequest(dataAccess, parser)
 
-    #         pageSize = 10
-    #         totalCount = dataAccess.get_documents_count(str(requestId))
-    #         totalPages = math.ceil(totalCount/pageSize)
-
-    #         for i in range(1,totalPages+1):
-    #             documents = dataAccess.get_all_documents(str(requestId),pageSize,i)
-    #             # for doc in documents:
-    #             #     dataAccess.update_document_reference(str(requestId),doc['_id'],parser.ContentAnalysis(doc['content'], referenceKeys))
-             
-    #         dataAccess.finish_requests(_id)
-    
-    
-
-
-
-    #process new requests
-    # requests = dataAccess.get_created_requests()
-
-    # if requests.count()>0 :
-        
-    #     for request in requests:
-    #         requestId = request['requestId']
-    #         searchKeys = list(map(lambda x : x['key'], request['searchKeys']))
-    #         referenceKeys = request['referenceKeys']
-    #         _id = request['_id']
-
-    #         for searchKey in searchKeys:
-    #             print(searchKey)
-    #             parser.Search(searchKey)
-    #             parser.getCourts()
-    #             dataAccess.processing_requests(_id,searchKey,parser.totalCount)
-    #             # parser.processIter(searchKeys,referenceKeys,requestId)
-
-    #         dataAccess.finish_requests(_id)
-            
-    #         print(request)
+    processProcessingKey(dataAccess, parser)
 
 if __name__ == '__main__':
     main()

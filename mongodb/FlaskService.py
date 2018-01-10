@@ -20,7 +20,7 @@ def get_all_requests():
     pageSize = request.args.get('pageSize', default =10, type = int)
     pageNumber = request.args.get('pageNumber', default = 1, type = int)
     
-    result = g.dataAccess.get_created_requests(pageSize,pageNumber)
+    result = g.dataAccess.get_allPaged_requests(pageSize,pageNumber)
     requests =  result['data']
     totalCount = result["totalCount"]
     totalPages = int( totalCount/ pageSize) + 1
@@ -59,8 +59,8 @@ def get_all_documents(requestId):
     sortBy = request.args.get('sortBy', default = 'keys', type= str)
     filters = request.args.getlist('filters')
     totalCount = g.dataAccess.get_documents_count(requestId, filters)
-
-    documents = g.dataAccess.get_all_documents(requestId,pageSize,pageNumber,sortBy,filters)
+    print(len(filters))
+    documents = g.dataAccess.get_allPaged_documents(requestId,pageSize,pageNumber,sortBy,filters)
 
     totalPages = int(totalCount / pageSize) + 1
 
@@ -73,7 +73,7 @@ def get_all_documents(requestId):
         },
         "data" : []
     }
-    print(results)
+    # print(results)
 
     for doc in documents:
         results["data"].append({
@@ -83,7 +83,7 @@ def get_all_documents(requestId):
             "tags":doc["tags"],
             "source":doc["source"]
         })
-
+    # print(results)
     return jsonify(results)
 
 @app.route('/requests', methods=['POST'])
@@ -103,7 +103,7 @@ def change_request():
     data=json.loads(request.data)
     print(data['referenceKeys'])
     # print()
-    g.dataAccess.change_reference(data['_id'],data['referenceKeys'])
+    g.dataAccess.change_request_reference(data['_id'],data['referenceKeys'])
     
     return jsonify("updated")
 
