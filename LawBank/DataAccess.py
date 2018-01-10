@@ -4,17 +4,54 @@ import time
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import re
+import configparser
+import logging
+import os
 
 class DataAccess:
 
     def __init__(self):
-        self.client = MongoClient('localhost:37017', username='mertin', password='mertin', authSource='konew')
+        self.Setting()
+        self.client = MongoClient(self.ipAddress, username=self.user , password=self.password, authSource=self.dbName )
         self.db = self.client['konew']
+        self.logger.info( 'Initialized')
+       
+    def Setting(self):
+        self.config = configparser.ConfigParser()
+        with open('Config.ini') as file:
+            self.config.readfp(file)
+
+        self.logPath = self.config.get('Options','Log_Path')
+        self.ipAddress = self.config.get('Mongo','ipAddress')
+        self.dbName = self.config.get('Mongo','dbName')
+        self.user = self.config.get('Mongo','user')
+        self.password = self.config.get('Mongo','password')
+        
+        formatter = logging.Formatter('[%(name)-12s %(levelname)-8s] %(asctime)s - %(message)s')
+        self.logger=logging.getLogger(__class__.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        
+        if not os.path.isdir(self.logPath):
+            os.mkdir(self.logPath)
+
+        fileHandler = logging.FileHandler(self.logPath+__class__.__name__+'_log.txt')
+        fileHandler.setLevel(logging.INFO)
+        fileHandler.setFormatter(formatter)
+
+        streamHandler = logging.StreamHandler()
+        streamHandler.setLevel(logging.DEBUG)
+        streamHandler.setFormatter(formatter)
+
+        self.logger.addHandler(fileHandler)
+        self.logger.addHandler(streamHandler)
+
+        self.logger.info('Finish DataAccess Setting')
 
     def add_request(self, request):
         request['status'] = 'created'
         request['createDate'] = datetime.datetime.now()
-        request['requestId'] = str(time.time())
+        request['requestId'] = str(datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S%f'))+'-'+request['searchKeys'][0]
+        request['searchKeys'] = list(map(lambda x:{"key":x, "count":0}, request['searchKeys']))
         return self.db['Requests'].insert(request)
 
     def remove_request(self, id):
@@ -26,8 +63,15 @@ class DataAccess:
     def update_document_reference(self, collection, id, referenceKeys ):
         return self.db[collection].update_one({'_id': ObjectId(id)}, {'$set': {'referenceKeys': referenceKeys}})
 
-    def get_created_requests(self):
-        return self.db['Requests'].find({'status': {"$in": ['created','processing','modified']}})
+    def get_created_requests(self, pageSize=10, pageNum=1):
+        skips = pageSize * (pageNum - 1)
+        totalCount = self.db['Requests'].find({'status': {"$in": ['modified','created','processing','finished']}}).count()
+
+        result = {
+            "totalCount":totalCount,
+            "data": self.db['Requests'].find({'status': {"$in": ['modified','created','processing','finished']}}).sort("createDate", pymongo.DESCENDING).skip(skips).limit(pageSize)
+        }
+        return result
 
     def get_modified_requests(self):
         return self.db['Requests'].find({'status': {"$in": ['modified']}})
@@ -44,12 +88,50 @@ class DataAccess:
     def insert_documents(self, collection, documents):
         return self.db[collection].insert_many(documents)
 
-    def get_all_documents(self, collection, pageSize, pageNum):
+    def get_all_documents(self, collection='1514966746.2558856', pageSize=10, pageNum=1, sortBy="keys", filters=[]):
         skips = pageSize * (pageNum - 1)
-        return self.db[collection].find().skip(skips).limit(pageSize)
+        filters = list(map(lambda x : [{'searchKeys':x},{'referenceKeys':x},{'tags':x}],filters ))
+        filters = sum(filters,[])
+
+        aggregateList = []
+        aggregateList.append(
+            {
+                        "$project":{
+                            "searchKeys":1,
+                            "referenceKeys":1,
+                            "tags":1,
+                            "title": 1,
+                            "content":1,
+                            "source":1,
+                            "date":1,
+                            "rkLength":{"$size":"$referenceKeys"},
+                            "skLength":{"$size":"$searchKeys"},
+                    }}
+        )
+        if len(filters) >0:
+            aggregateList.append( {  "$match":{"$or":filters}} )
+
+        if sortBy == "keys":
+            aggregateList.append( { "$sort": {"skLength":-1,"rkLength":-1, "date": -1}})
+        else:
+            aggregateList.append( { "$sort": {"skLength":-1,"date": -1,"rkLength":-1}})
+
+        print(aggregateList)
+        aggregateList.append( { "$skip": skips})
+
+        aggregateList.append( { "$limit": pageSize })
+
+        return self.db[collection].aggregate(aggregateList)
     
-    def get_documents_count(self,collection):
-        return self.db[collection].find().count()
+    def get_documents_count(self,collection, filters=[]):
+
+        if len(filters) >0:
+            filters = list(map(lambda x : [{'searchKeys':x},{'referenceKeys':x},{'tags':x}],filters ))
+            filters = sum(filters,[])
+            filters = {"$or":filters}
+            return self.db[collection].find(filters).count()
+        else:
+            return self.db[collection].find().count()
 
 if __name__ == "__main__":
     db = DataAccess()

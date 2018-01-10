@@ -3,6 +3,9 @@ from flask import Flask, jsonify, request, g
 from DataAccess import DataAccess
 from flask_cors import CORS
 import json
+import configparser
+import logging
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -13,6 +16,7 @@ def before_request():
 
 @app.route('/requests', methods=['GET'])
 def get_all_requests():
+    app.logger.info('get_all_requests')
     pageSize = request.args.get('pageSize', default =10, type = int)
     pageNumber = request.args.get('pageNumber', default = 1, type = int)
     
@@ -49,6 +53,7 @@ def get_all_requests():
 
 @app.route('/documents/<requestId>', methods=['GET'])
 def get_all_documents(requestId):
+    app.logger.info('get_all_documents'+ requestId)
     pageSize = request.args.get('pageSize', default = 10, type = int)
     pageNumber = request.args.get('pageNumber', default = 1, type = int)
     sortBy = request.args.get('sortBy', default = 'keys', type= str)
@@ -83,6 +88,7 @@ def get_all_documents(requestId):
 
 @app.route('/requests', methods=['POST'])
 def add_request():
+    app.logger.info('add_request')
     data=json.loads(request.data)
 
     g.dataAccess.add_request({
@@ -93,7 +99,7 @@ def add_request():
 
 @app.route('/requests', methods=['PUT'])
 def change_request():
-    
+    app.logger.info('change_request')
     data=json.loads(request.data)
     print(data['referenceKeys'])
     # print()
@@ -103,6 +109,7 @@ def change_request():
 
 @app.route('/requests/delete', methods=['PUT'])
 def remove_request():
+    app.logger.info('remove_request')
     data=json.loads(request.data)
 
     # print(data)
@@ -110,5 +117,34 @@ def remove_request():
     
     return jsonify("deleted")
 
+def Setting():
+    config = configparser.ConfigParser()
+    with open('Config.ini') as file:
+        config.readfp(file)
+
+    logPath = config.get('Options','Log_Path')
+    
+
+    formatter = logging.Formatter('[%(name)-12s %(levelname)-8s] %(asctime)s - %(message)s')
+    # app.logger=logging.getLogger(__class__.__name__)
+    app.logger.setLevel(logging.DEBUG)
+    
+    if not os.path.isdir(logPath):
+        os.mkdir(logPath)
+
+    fileHandler = logging.FileHandler(logPath+'FlaskService.log')
+    fileHandler.setLevel(logging.INFO)
+    fileHandler.setFormatter(formatter)
+
+    streamHandler = logging.StreamHandler()
+    streamHandler.setLevel(logging.DEBUG)
+    streamHandler.setFormatter(formatter)
+
+    app.logger.addHandler(fileHandler)
+    app.logger.addHandler(streamHandler)
+
+    app.logger.info('Finish Setting')
+        
 if __name__ == '__main__':
+    Setting()
     app.run(debug=True)

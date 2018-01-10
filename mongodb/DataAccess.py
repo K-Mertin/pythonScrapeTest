@@ -4,12 +4,48 @@ import time
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import re
+import configparser
+import logging
+import os
 
 class DataAccess:
 
     def __init__(self):
-        self.client = MongoClient('localhost:37017', username='mertin', password='mertin', authSource='konew')
+        self.Setting()
+        self.client = MongoClient(self.ipAddress, username=self.user , password=self.password, authSource=self.dbName )
         self.db = self.client['konew']
+        self.logger.info( 'Initialized')
+       
+    def Setting(self):
+        self.config = configparser.ConfigParser()
+        with open('Config.ini') as file:
+            self.config.readfp(file)
+
+        self.logPath = self.config.get('Options','Log_Path')
+        self.ipAddress = self.config.get('Mongo','ipAddress')
+        self.dbName = self.config.get('Mongo','dbName')
+        self.user = self.config.get('Mongo','user')
+        self.password = self.config.get('Mongo','password')
+        
+        formatter = logging.Formatter('[%(name)-12s %(levelname)-8s] %(asctime)s - %(message)s')
+        self.logger=logging.getLogger(__class__.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        
+        if not os.path.isdir(self.logPath):
+            os.mkdir(self.logPath)
+
+        fileHandler = logging.FileHandler(self.logPath+__class__.__name__+'_log.txt')
+        fileHandler.setLevel(logging.INFO)
+        fileHandler.setFormatter(formatter)
+
+        streamHandler = logging.StreamHandler()
+        streamHandler.setLevel(logging.DEBUG)
+        streamHandler.setFormatter(formatter)
+
+        self.logger.addHandler(fileHandler)
+        self.logger.addHandler(streamHandler)
+
+        self.logger.info('Finish DataAccess Setting')
 
     def add_request(self, request):
         request['status'] = 'created'
@@ -74,11 +110,13 @@ class DataAccess:
         )
         if len(filters) >0:
             aggregateList.append( {  "$match":{"$or":filters}} )
+
         if sortBy == "keys":
             aggregateList.append( { "$sort": {"skLength":-1,"rkLength":-1, "date": -1}})
         else:
-             aggregateList.append( { "$sort": {"skLength":-1,"date": -1,"rkLength":-1}})
+            aggregateList.append( { "$sort": {"skLength":-1,"date": -1,"rkLength":-1}})
 
+        print(aggregateList)
         aggregateList.append( { "$skip": skips})
 
         aggregateList.append( { "$limit": pageSize })
